@@ -1,24 +1,63 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
-
-	"github.com/gofiber/fiber/v2"
+	"io"
+	"net/http"
+	"time"
 )
 
-func handlePayment(url string, payload []byte) error {
-	agent := fiber.Post(fmt.Sprintf("%s/payments", url))
-	agent.Request().Header.SetContentType(fiber.MIMEApplicationJSON)
-	agent.Body(payload)
+type PaymentClient struct {
+	client *http.Client
+}
 
-	statusCode, _, errs := agent.Bytes()
-	if len(errs) > 0 {
-		return fmt.Errorf("%s: %w", errs[0], ErrCreatePayment)
+func NewPaymentClient() *PaymentClient {
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     20,
+		IdleConnTimeout:     90 * time.Second,
+
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+
+		DisableKeepAlives: false,
 	}
 
-	if statusCode != fiber.StatusOK {
-		return fmt.Errorf("Invalid response status %d: %w", statusCode, ErrCreatePayment)
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   5 * time.Second,
 	}
+
+	return &PaymentClient{
+		client: client,
+	}
+}
+
+func (p *PaymentClient) HandlePayment(baseUrl string, payload []byte) error {
+	client := p.client
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/payments", baseUrl), bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("creating request: %w", ErrCreatePayment)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connection", "keep-alive")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request: %w", ErrCreatePayment)
+	}
+
+	defer func() {
+		if resp.Body != nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+	}()
 
 	return nil
 }

@@ -18,11 +18,12 @@ import (
 )
 
 type Handler struct {
-	db      *db.Queries
-	cfg     *config.Config
-	queue   *queue.Message
-	breaker circuitbreaker.CircuitBreaker[ProcessorType]
-	timeout timeout.Timeout[ProcessorType]
+	db         *db.Queries
+	cfg        *config.Config
+	queue      *queue.Message
+	httpClient *PaymentClient
+	breaker    circuitbreaker.CircuitBreaker[ProcessorType]
+	timeout    timeout.Timeout[ProcessorType]
 }
 
 const (
@@ -41,11 +42,12 @@ func New(queue *queue.Message, db *db.Queries, cfg *config.Config) *Handler {
 		Build()
 
 	return &Handler{
-		db:      db,
-		cfg:     cfg,
-		queue:   queue,
-		breaker: breakerCfg,
-		timeout: timeoutCfg,
+		db:         db,
+		cfg:        cfg,
+		queue:      queue,
+		breaker:    breakerCfg,
+		timeout:    timeoutCfg,
+		httpClient: NewPaymentClient(),
 	}
 }
 
@@ -99,12 +101,12 @@ func (h *Handler) ProcessPayment(data []byte) error {
 	processor, err := failsafe.Get(
 		func() (ProcessorType, error) {
 			slog.Info("using default")
-			err := handlePayment(h.cfg.DefaultUrl, payload)
+			err := h.httpClient.HandlePayment(h.cfg.DefaultUrl, payload)
 			return ProcessorDefault, err
 		},
 		fallback.WithFunc(func(e failsafe.Execution[ProcessorType]) (ProcessorType, error) {
 			slog.Info("using fallback")
-			err := handlePayment(h.cfg.FallbackUrl, payload)
+			err := h.httpClient.HandlePayment(h.cfg.FallbackUrl, payload)
 			return ProcessorFallback, err
 		}),
 		h.breaker,
