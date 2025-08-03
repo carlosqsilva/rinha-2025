@@ -29,3 +29,6 @@ compose-up:
 
 compose-down:
   docker compose down -v
+
+publish-image:
+  docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/carlosqsilva/rinha-2025:latest --push .
