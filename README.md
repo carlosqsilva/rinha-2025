@@ -1,6 +1,4 @@
 <h1 align="center">
-  <img src="./gopher_game.svg" width="80"/>
-  <br>
 🚀 Rinha de backend 2025 : payment-proxy
 </h1>
 
