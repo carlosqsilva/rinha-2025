@@ -1,0 +1,115 @@
+configs:
+  haproxy.cfg:
+    content: |
+      global
+        maxconn 20000
+        daemon
+
+      defaults
+        mode http
+        timeout client 5000s
+        timeout connect 5000s
+        timeout server 5000s
+
+      frontend frontend
+        bind *:80
+        default_backend rinha
+
+      backend rinha
+        balance roundrobin
+        server app01 /sockets/rinha.app01 check
+        server app02 /sockets/rinha.app02 check
+
+services:
+  haproxy:
+    image: haproxy:3.2-alpine
+    container_name: proxy
+    ports:
+      - 9999:80
+    volumes:
+      - sockets:/sockets:rw
+    configs:
+      - source: haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+    networks:
+      - rinha
+    depends_on:
+      - app01
+      - app02
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "80MB"
+
+  nats:
+    image: nats
+    ports:
+      - "4222:4222"
+    volumes:
+      - nats:/data
+    networks:
+      - rinha
+    command: "-js -sd /data"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: "100MB"
+
+  app01:
+    build: .
+    container_name: app01
+    environment:
+      SOCKET: rinha.app01
+      PROCESSOR_DEFAULT: http://payment-processor-default:8080
+      PROCESSOR_FALLBACK: http://payment-processor-fallback:8080
+      NATS_URL: nats://nats:4222
+      INIT_DB: ON
+    volumes:
+      - sockets:/sockets:rw
+      - data:/data:rw
+    networks:
+      - rinha
+      - payment-processor
+    depends_on:
+      - nats
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "80MB"
+
+  app02:
+    build: .
+    container_name: app02
+    environment:
+      SOCKET: rinha.app02
+      PROCESSOR_DEFAULT: http://payment-processor-default:8080
+      PROCESSOR_FALLBACK: http://payment-processor-fallback:8080
+      NATS_URL: nats://nats:4222
+      SAVE_CONSUMER: ON
+    volumes:
+      - sockets:/sockets:rw
+      - data:/data:rw
+    networks:
+      - rinha
+      - payment-processor
+    depends_on:
+      - nats
+      - app01
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "80MB"
+
+volumes:
+  nats:
+  data:
+  sockets:
+
+networks:
+  rinha:
+  payment-processor:
+    external: true

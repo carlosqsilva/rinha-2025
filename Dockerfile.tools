@@ -1,0 +1,24 @@
+FROM golang:1.24-bookworm AS base
+
+ENV GOCACHE=/tmp/go-build
+ARG CAPNPROTO_VERSION=1.1.0
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential pkg-config \
+  && rm -rf /var/lib/apt/lists/* \
+  && apt-get clean
+
+RUN wget https://capnproto.org/capnproto-c++-${CAPNPROTO_VERSION}.tar.gz
+RUN tar -xvzf capnproto-c++-${CAPNPROTO_VERSION}.tar.gz
+RUN cd capnproto-c++-${CAPNPROTO_VERSION} && ./configure --disable-shared --enable-static && make -j6 && make install
+
+RUN go install capnproto.org/go/capnp/v3/capnpc-go@latest
+
+FROM debian:bookworm-slim
+
+ENV PATH=$PATH:/usr/local/bin:/go/bin
+
+WORKDIR /app
+COPY --from=base /usr/local/bin/capnp /usr/local/bin/
+COPY --from=base /go/bin/capnpc-go /go/bin/
+COPY --from=base /go/pkg/mod/ /go/pkg/mod/
