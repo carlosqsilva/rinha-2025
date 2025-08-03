@@ -58,7 +58,7 @@ services:
           memory: "100MB"
 
   app01:
-    build: .
+    image: ghcr.io/carlosqsilva/rinha-2025:latest
     container_name: app01
     environment:
       SOCKET: rinha.app01
@@ -78,10 +78,10 @@ services:
       resources:
         limits:
           cpus: "0.3"
-          memory: "80MB"
+          memory: "85MB"
 
   app02:
-    build: .
+    image: ghcr.io/carlosqsilva/rinha-2025:latest
     container_name: app02
     environment:
       SOCKET: rinha.app02
@@ -102,7 +102,7 @@ services:
       resources:
         limits:
           cpus: "0.3"
-          memory: "80MB"
+          memory: "85MB"
 
 volumes:
   nats:
